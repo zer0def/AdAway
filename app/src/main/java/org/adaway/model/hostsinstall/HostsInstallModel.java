@@ -621,13 +621,25 @@ public class HostsInstallModel extends Observable {
         // write hostnames
         String line;
         boolean enableIpv6 = PreferenceHelper.getEnableIpv6(this.context);
-        for (String hostname : parser.getBlacklist()) {
-            line = Constants.LINE_SEPARATOR + redirectionIpv4 + " " + hostname;
-            outputStream.write(line.getBytes());
-            if (enableIpv6) {
-                line = Constants.LINE_SEPARATOR + redirectionIpv6 + " " + hostname;
-                outputStream.write(line.getBytes());
-            }
+        int pageSize = 16;
+
+        // Write out blocked hostnames
+        int offset = 0; do {
+            line = Constants.LINE_SEPARATOR + redirectionIpv4 + " " + parser
+                .getBlacklist().stream().skip(offset).limit(pageSize)
+                .collect(java.util.stream.Collectors.joining(" "));
+            outputStream.write(line.getBytes()); outputStream.flush();
+            offset += pageSize;
+        } while(!line.trim().isEmpty());
+
+        if (enableIpv6) {
+            offset = 0; do {
+                line = Constants.LINE_SEPARATOR + redirectionIpv6 + " " + parser
+                    .getBlacklist().stream().skip(offset).limit(pageSize)
+                    .collect(java.util.stream.Collectors.joining(" "));
+                outputStream.write(line.getBytes()); outputStream.flush();
+                offset += pageSize;
+            } while(!line.trim().isEmpty());
         }
 
         /* REDIRECT LIST: write redirect items */
