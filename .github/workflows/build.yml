@@ -1,0 +1,38 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  android_build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: NDK 21 setup
+      id: setup-ndk
+      uses: nttld/setup-ndk@v1.0.6
+      with:
+        ndk-version: r21
+
+    - name: JDK 8 setup
+      uses: actions/setup-java@v2
+      with:
+        java-version: '8'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Build artifacts
+      run: chmod +x gradlew; ./gradlew --no-daemon --stacktrace assembleDebug
+
+    - name: Publish artifacts
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        api_uri="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases"
+        upload_uri="https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases"
+
+        tag=${GITHUB_REF_NAME}-$(date -u +%Y%m%d)
+        id=$(echo "{\"tag_name\":\"${tag}\",\"name\":\"${tag}-debug\",\"body\":\"${tag}\",\"draft\":true}" | curl -fs -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" -d@- "${api_uri}" | jq -r .id)
+        curl -fs -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/octet-stream" -o /dev/null --data-binary "@app/build/outputs/apk/debug/app-debug.apk" "${upload_uri}/${id}/assets?name=${GITHUB_REPOSITORY##*/}-${tag}-debug.apk"
+        echo '{"draft":false}' | curl -fs -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" -d@- -o /dev/null -XPATCH "${api_uri}/${id}"
